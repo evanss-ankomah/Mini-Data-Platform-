@@ -1,0 +1,112 @@
+contract:
+  name: sales_orders
+  version: "1.0"
+  owner: data-engineering
+  description: "Inbound sales order CSV files from upstream systems"
+
+source:
+  format: csv
+  encoding: utf-8
+  delimiter: ","
+  has_header: true
+  landing_path: "landing/sales/"
+
+columns:
+  - name: order_id
+    type: string
+    required: true
+    unique: true
+    pattern: "^ORD-[0-9]{6,10}$"
+    description: "Unique order identifier, format: ORD-NNNNNN"
+
+  - name: order_date
+    type: date
+    required: true
+    format: "%Y-%m-%d"
+    constraints:
+      min: "2020-01-01"
+      max: "today+1"
+    description: "Date the order was placed"
+
+  - name: customer_id
+    type: string
+    required: true
+    pattern: "^CUST-[0-9]{4,8}$"
+    description: "Customer identifier"
+
+  - name: region
+    type: string
+    required: true
+    allowed_values:
+      - "North America"
+      - "Europe"
+      - "Asia Pacific"
+      - "Latin America"
+      - "Middle East & Africa"
+    description: "Sales region"
+
+  - name: product
+    type: string
+    required: true
+    min_length: 2
+    max_length: 100
+    description: "Product name"
+
+  - name: quantity
+    type: integer
+    required: true
+    constraints:
+      min: 1
+      max: 100000
+    description: "Number of units ordered"
+
+  - name: unit_price
+    type: float
+    required: true
+    constraints:
+      min: 0.01
+      max: 999999.99
+    description: "Price per unit in USD"
+
+business_rules:
+  - rule: "total_amount = quantity * unit_price"
+    description: "Derived field, computed during transformation"
+  - rule: "no duplicate order_id within a single file"
+  - rule: "order_date must not be more than 1 day in the future"
+
+examples:
+  valid:
+    - order_id: "ORD-000001"
+      order_date: "2025-06-15"
+      customer_id: "CUST-1234"
+      region: "Europe"
+      product: "Widget Pro"
+      quantity: 10
+      unit_price: 29.99
+
+    - order_id: "ORD-000002"
+      order_date: "2025-06-16"
+      customer_id: "CUST-5678"
+      region: "Asia Pacific"
+      product: "Gadget X"
+      quantity: 1
+      unit_price: 499.00
+
+  invalid:
+    - order_id: "12345"
+      order_date: "2025-06-15"
+      customer_id: "CUST-1234"
+      region: "Europe"
+      product: "Widget Pro"
+      quantity: 10
+      unit_price: 29.99
+      reason: "order_id does not match ORD-NNNNNN pattern"
+
+    - order_id: "ORD-000003"
+      order_date: "2030-01-01"
+      customer_id: "CUST-1234"
+      region: "Antarctica"
+      product: "W"
+      quantity: -5
+      unit_price: 0.00
+      reason: "Multiple violations: future date, invalid region, short product name, negative qty, zero price"
